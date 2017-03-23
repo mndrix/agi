@@ -1,6 +1,10 @@
 # agi
---
+
+```go
     import "github.com/zaf/agi"
+```
+
+Full documentation available at https://godoc.org/github.com/zaf/agi
 
 Package agi implements the Asterisk Gateway Interface (http://www.asterisk.org).
 All AGI commands are implemented as methods of the Session struct that holds a
