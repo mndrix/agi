@@ -34,8 +34,13 @@ package agi
 import (
 	"bufio"
 	"fmt"
+	"log"
+	"net"
 	"os"
+	"runtime"
 	"strings"
+
+	"golang.org/x/net/context"
 )
 
 // Session is a struct holding AGI environment vars and the I/O handlers.
@@ -68,6 +73,72 @@ func (a *Session) Init(rw *bufio.ReadWriter) error {
 	}
 	err := a.parseEnv()
 	return err
+}
+
+// Handler responds to an AGI request.  Each request is handled in a
+// separate goroutine.
+//
+// If ServeAGI panics, the server assumes that the effect of the panic
+// was isolated to the active request. It recovers the panic, logs a
+// stack trace to os.Stderr and closes the connection.
+//
+// See also HandlerFunc.
+type Handler interface {
+	ServeAGI(context.Context, *Session)
+}
+
+// HandlerFunc is an adapter that allows the user of ordinary
+// functions at AGI handlers.  If f is a function with the appropriate
+// signature, HandlerFunc(f) is a Handler that calls f.
+type HandlerFunc func(context.Context, *Session)
+
+// ServeAGI calls f(a)
+func (f HandlerFunc) ServeAGI(ctx context.Context, a *Session) {
+	f(ctx, a)
+}
+
+// Listen listens on the TCP network address addr and then calls
+// handler to handle AGI requests for incoming connections.  This
+// creates a FastAGI server.
+func Listen(addr string, handler Handler) error {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	defer ln.Close()
+
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			return err
+		}
+
+		go handle(conn, handler)
+	}
+}
+
+func handle(conn net.Conn, handler Handler) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		if err := recover(); err != nil {
+			const size = 64 << 10
+			buf := make([]byte, size)
+			n := runtime.Stack(buf, false)
+			buf = buf[:n]
+			log.Printf("agi: panic: %v\n%s", err, buf)
+		}
+		conn.Close()
+		cancel()
+	}()
+
+	s := New()
+	r := bufio.NewReader(conn)
+	w := bufio.NewWriter(conn)
+	err := s.Init(bufio.NewReadWriter(r, w))
+	if err != nil {
+		panic(fmt.Sprintf("Error parsing AGI environment: %s\n", err))
+	}
+	handler.ServeAGI(ctx, s)
 }
 
 // Answer answers channel. Res is -1 on channel failure, or 0 if successful.
