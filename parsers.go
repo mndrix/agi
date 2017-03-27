@@ -24,7 +24,7 @@ func (a *Session) parseEnv() error {
 	var err error
 	var line []byte
 	for i := 0; i <= envMax; i++ {
-		line, err = a.buf.ReadBytes(10)
+		line, err = a.buf.ReadBytes('\n')
 		if err != nil || len(line) <= len("\r\n") {
 			break
 		}
@@ -53,7 +53,7 @@ func (a *Session) parseEnv() error {
 func (a *Session) sendMsg(s string) (Reply, error) {
 	// Make sure there wasn't any data received, usually a HANGUP request from asterisk.
 	if i := a.buf.Reader.Buffered(); i != 0 {
-		line, _ := a.buf.ReadBytes(10)
+		line, _ := a.buf.ReadBytes('\n')
 		return Reply{}, fmt.Errorf(string(line[:len(line)-1]))
 	}
 	s = strings.Replace(s, "\r", " ", -1)
@@ -70,7 +70,7 @@ func (a *Session) sendMsg(s string) (Reply, error) {
 // parseResponse reads back and parses AGI response. Returns the Reply and the protocol error, if any.
 func (a *Session) parseResponse() (Reply, error) {
 	r := Reply{}
-	line, err := a.buf.ReadBytes(10)
+	line, err := a.buf.ReadBytes('\n')
 	if err != nil {
 		return r, err
 	}
@@ -120,7 +120,7 @@ func (a *Session) parseResponse() (Reply, error) {
 		err = errors.New("invalid command syntax")
 	case "520-Invalid":
 		err = errors.New("invalid command syntax")
-		a.buf.ReadBytes(10) // Read Command syntax doc.
+		a.buf.ReadBytes('\n') // Read Command syntax doc.
 	default:
 		err = fmt.Errorf("malformed or partial agi response: %s", string(line))
 	}
