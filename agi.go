@@ -33,14 +33,13 @@ package agi
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"runtime"
 	"strings"
-
-	"golang.org/x/net/context"
 )
 
 // Session is a struct holding AGI environment vars and the I/O handlers.
